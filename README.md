@@ -58,6 +58,12 @@ Kaggle Dataset Link: https://www.kaggle.com/competitions/home-credit-default-ris
 
 
 
+<img width="1054" height="253" alt="image" src="https://github.com/user-attachments/assets/da917cb9-a128-4886-b777-960b75225be7" />
+
+
+
+
+
 # 👥 Collaboration
 
 # Backend Development – Souparno Goswami
