@@ -31,6 +31,39 @@ interface Result {
   recommendation: string;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:5000';
+
+const extractDefaultProbability = (data: any): number => {
+  // 1) Explicit default_probability field
+  if (typeof data?.default_probability === 'number') {
+    return data.default_probability;
+  }
+
+  // 2) probability as scalar
+  if (typeof data?.probability === 'number') {
+    return data.probability;
+  }
+
+  // 3) probability as [p0, p1] or similar
+  if (Array.isArray(data?.probability) && data.probability.length > 0) {
+    // Prefer positive-class probability if available
+    if (data.probability.length > 1 && typeof data.probability[1] === 'number') {
+      return data.probability[1];
+    }
+    if (typeof data.probability[0] === 'number') {
+      return data.probability[0];
+    }
+  }
+
+  // 4) Some backends may put the score in "prediction"
+  if (typeof data?.prediction === 'number') {
+    return data.prediction;
+  }
+
+  // Fallback (should be rare)
+  return 0.15;
+};
+
 export default function CreditRiskForm() {
   const [formData, setFormData] = useState<FormData>({
     gender: '',
@@ -142,25 +175,11 @@ export default function CreditRiskForm() {
           return raw;
         });
 
-        const response = await axios.post('http://127.0.0.1:5000/predict', { features });
-        const dp =
-          response.data?.default_probability ??
-          (typeof response.data?.probability === 'number'
-            ? response.data.probability
-            : Array.isArray(response.data?.probability) && response.data.probability.length > 1
-            ? response.data.probability[1]
-            : 0.15);
-        probabilityFromModel = dp;
+        const response = await axios.post(`${API_BASE_URL}/predict`, { features });
+        probabilityFromModel = extractDefaultProbability(response.data);
       } else {
-        const response = await axios.post('http://127.0.0.1:5000/predict', apiPayload);
-        const dp =
-          response.data?.default_probability ??
-          (typeof response.data?.probability === 'number'
-            ? response.data.probability
-            : Array.isArray(response.data?.probability) && response.data.probability.length > 1
-            ? response.data.probability[1]
-            : 0.15);
-        probabilityFromModel = dp;
+        const response = await axios.post(`${API_BASE_URL}/predict`, apiPayload);
+        probabilityFromModel = extractDefaultProbability(response.data);
       }
 
       // Use model probability (if available) to drive UI
@@ -184,7 +203,7 @@ export default function CreditRiskForm() {
 
   useEffect(() => {
     let mounted = true;
-    axios.get('http://127.0.0.1:5000/api/features')
+    axios.get(`${API_BASE_URL}/api/features`)
       .then(res => {
         if (!mounted) return;
         setFeatureCols(res.data.feature_columns || null);
@@ -254,12 +273,12 @@ export default function CreditRiskForm() {
       category = 'Medium Risk';
       badge = 'MEDIUM RISK';
       badgeClass = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300';
-      recommendation = '⚠️ Review Required';
+      recommendation = '⚠️ Not auto-approved (manual review required)';
     } else {
       category = 'High Risk';
       badge = 'HIGH RISK';
       badgeClass = 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
-      recommendation = '❌ Further Assessment';
+      recommendation = '❌ Not approved';
     }
     
     setResult({
